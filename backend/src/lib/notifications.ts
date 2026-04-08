@@ -30,14 +30,16 @@ export async function createNotificationForAdmins(
       where: { role: 'ADMIN' },
     });
 
-    await prisma.notification.createMany({
-      data: admins.map((admin) => ({
-        userId: admin.id,
-        title,
-        message,
-        type,
-      })),
-    });
+    if (admins.length > 0) {
+      await prisma.notification.createMany({
+        data: admins.map((admin) => ({
+          userId: admin.id,
+          title,
+          message,
+          type,
+        })),
+      });
+    }
   } catch (error) {
     console.error('Error creating admin notifications:', error);
   }

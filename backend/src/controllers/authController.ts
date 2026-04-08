@@ -37,26 +37,24 @@ export const signup = async (req: AuthRequest, res: Response): Promise<void> => 
         password: hashedPassword,
         role: role === 'ADMIN' ? 'ADMIN' : 'STUDENT',
       },
-      select: {
-        id: true,
-        email: true,
-        phone: true,
-        name: true,
-        role: true,
-        createdAt: true,
-      },
     });
 
     const token = jwt.sign(
       { userId: user.id, role: user.role },
-      process.env.JWT_SECRET!,
+      process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production',
       { expiresIn: '7d' }
     );
 
-    res.status(201).json({ 
-      message: 'User created successfully', 
-      user,
-      token 
+    res.status(201).json({
+      message: 'User created successfully',
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        phone: user.phone,
+        name: user.name,
+        role: user.role,
+      },
     });
   } catch (error) {
     console.error('Signup error:', error);
@@ -66,39 +64,36 @@ export const signup = async (req: AuthRequest, res: Response): Promise<void> => 
 
 export const login = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { phone, password } = req.body;
+    const { email, phone, password } = req.body;
 
-    if (!phone || !password) {
-      res.status(400).json({ error: 'Phone number and password are required' });
+    if ((!email && !phone) || !password) {
+      res.status(400).json({ error: 'Email/phone and password are required' });
       return;
     }
 
-    const user = await prisma.user.findUnique({ where: { phone } });
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: email || undefined },
+          { phone },
+        ],
+      },
+    });
+
     if (!user) {
       res.status(401).json({ error: 'Invalid credentials' });
       return;
     }
 
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
+    const isValid = await bcrypt.compare(password, user.password);
+    if (!isValid) {
       res.status(401).json({ error: 'Invalid credentials' });
       return;
     }
 
-    const ipAddress = req.ip || req.headers['x-forwarded-for'] as string || null;
-    const userAgent = req.headers['user-agent'] || null;
-
-    await prisma.loginActivity.create({
-      data: {
-        userId: user.id,
-        ipAddress,
-        userAgent,
-      },
-    });
-
     const token = jwt.sign(
       { userId: user.id, role: user.role },
-      process.env.JWT_SECRET!,
+      process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production',
       { expiresIn: '7d' }
     );
 
@@ -121,16 +116,15 @@ export const login = async (req: AuthRequest, res: Response): Promise<void> => {
 
 export const getProfile = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    const userId = req.userId;
+    
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
     const user = await prisma.user.findUnique({
-      where: { id: req.userId },
-      select: {
-        id: true,
-        email: true,
-        phone: true,
-        name: true,
-        role: true,
-        createdAt: true,
-      },
+      where: { id: userId },
     });
 
     if (!user) {
@@ -138,7 +132,14 @@ export const getProfile = async (req: AuthRequest, res: Response): Promise<void>
       return;
     }
 
-    res.json(user);
+    res.json({
+      id: user.id,
+      email: user.email,
+      phone: user.phone,
+      name: user.name,
+      role: user.role,
+      createdAt: user.createdAt,
+    });
   } catch (error) {
     console.error('Get profile error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -147,50 +148,33 @@ export const getProfile = async (req: AuthRequest, res: Response): Promise<void>
 
 export const updateProfile = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { name, email, phone } = req.body;
     const userId = req.userId;
+    const { email, phone, name } = req.body;
 
-    const existingUser = await prisma.user.findUnique({ where: { id: userId } });
-    if (!existingUser) {
-      res.status(404).json({ error: 'User not found' });
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
       return;
-    }
-
-    if (email !== existingUser.email || phone !== existingUser.phone) {
-      const duplicate = await prisma.user.findFirst({
-        where: {
-          id: { not: userId },
-          OR: [
-            { email: email || undefined },
-            { phone: phone || undefined },
-          ],
-        },
-      });
-
-      if (duplicate) {
-        res.status(400).json({ error: 'Email or phone already in use' });
-        return;
-      }
     }
 
     const user = await prisma.user.update({
       where: { id: userId },
       data: {
-        name: name || existingUser.name,
-        email: email || existingUser.email,
-        phone: phone || existingUser.phone,
-      },
-      select: {
-        id: true,
-        email: true,
-        phone: true,
-        name: true,
-        role: true,
-        createdAt: true,
+        email: email || undefined,
+        phone: phone || undefined,
+        name: name || undefined,
       },
     });
 
-    res.json({ message: 'Profile updated successfully', user });
+    res.json({
+      message: 'Profile updated successfully',
+      user: {
+        id: user.id,
+        email: user.email,
+        phone: user.phone,
+        name: user.name,
+        role: user.role,
+      },
+    });
   } catch (error) {
     console.error('Update profile error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -199,8 +183,13 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
 
 export const changePassword = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { currentPassword, newPassword } = req.body;
     const userId = req.userId;
+    const { currentPassword, newPassword } = req.body;
+
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
 
     if (!currentPassword || !newPassword) {
       res.status(400).json({ error: 'Current password and new password are required' });
@@ -213,9 +202,9 @@ export const changePassword = async (req: AuthRequest, res: Response): Promise<v
       return;
     }
 
-    const isPasswordValid = await bcrypt.compare(currentPassword, user.password);
-    if (!isPasswordValid) {
-      res.status(401).json({ error: 'Current password is incorrect' });
+    const isValid = await bcrypt.compare(currentPassword, user.password);
+    if (!isValid) {
+      res.status(400).json({ error: 'Current password is incorrect' });
       return;
     }
 

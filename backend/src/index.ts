@@ -5,6 +5,8 @@ import authRoutes from './routes/authRoutes';
 import studentRoutes from './routes/studentRoutes';
 import attendanceRoutes from './routes/attendanceRoutes';
 import notificationRoutes from './routes/notificationRoutes';
+import timetableRoutes from './routes/timetableRoutes';
+import reportRoutes from './routes/reportRoutes';
 
 dotenv.config();
 
@@ -21,11 +23,14 @@ app.get('/', (req, res) => {
   res.json({ 
     message: 'College ERP API is running', 
     version: '1.0.0',
+    database: 'connected',
     endpoints: {
       auth: '/api/auth',
       students: '/api/students',
       attendance: '/api/attendance',
       notifications: '/api/notifications',
+      timetable: '/api/timetable',
+      reports: '/api/reports',
     }
   });
 });
@@ -34,6 +39,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/timetable', timetableRoutes);
+app.use('/api/reports', reportRoutes);
 
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Error:', err);

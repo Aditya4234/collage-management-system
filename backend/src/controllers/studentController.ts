@@ -83,20 +83,6 @@ export const getStudents = async (req: AuthRequest, res: Response): Promise<void
         skip,
         take: limitNum,
         orderBy: { createdAt: 'desc' },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          rollNo: true,
-          phone: true,
-          course: true,
-          semester: true,
-          address: true,
-          fatherName: true,
-          admissionDate: true,
-          createdAt: true,
-          updatedAt: true,
-        },
       }),
       prisma.student.count({ where }),
     ]);
@@ -122,12 +108,6 @@ export const getStudentById = async (req: AuthRequest, res: Response): Promise<v
 
     const student = await prisma.student.findUnique({
       where: { id },
-      include: {
-        attendance: {
-          orderBy: { date: 'desc' },
-          take: 30,
-        },
-      },
     });
 
     if (!student) {
@@ -153,20 +133,6 @@ export const updateStudent = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
-    if (email !== existingStudent.email || rollNo !== existingStudent.rollNo) {
-      const duplicate = await prisma.student.findFirst({
-        where: {
-          id: { not: id },
-          OR: [{ email }, { rollNo }],
-        },
-      });
-
-      if (duplicate) {
-        res.status(400).json({ error: 'Email or roll number already in use' });
-        return;
-      }
-    }
-
     const student = await prisma.student.update({
       where: { id },
       data: {
@@ -178,9 +144,6 @@ export const updateStudent = async (req: AuthRequest, res: Response): Promise<vo
         semester: semester !== undefined ? semester : existingStudent.semester,
         address: address !== undefined ? address : existingStudent.address,
         fatherName: fatherName !== undefined ? fatherName : existingStudent.fatherName,
-        admissionDate: admissionDate !== undefined 
-          ? (admissionDate ? new Date(admissionDate) : null) 
-          : existingStudent.admissionDate,
       },
     });
 

@@ -1,12 +1,12 @@
 import { Router } from 'express';
-import { authMiddleware } from '../middleware/auth';
 import prisma from '../lib/prisma';
+import { authMiddleware, AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
-router.get('/', authMiddleware, async (req, res) => {
+router.get('/', authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = req.userId;
     const notifications = await prisma.notification.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
@@ -19,9 +19,9 @@ router.get('/', authMiddleware, async (req, res) => {
   }
 });
 
-router.get('/unread-count', authMiddleware, async (req, res) => {
+router.get('/unread-count', authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = req.userId;
     const count = await prisma.notification.count({
       where: { userId, isRead: false },
     });
@@ -46,9 +46,9 @@ router.put('/:id/read', authMiddleware, async (req, res) => {
   }
 });
 
-router.put('/read-all', authMiddleware, async (req, res) => {
+router.put('/read-all', authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = req.userId;
     await prisma.notification.updateMany({
       where: { userId, isRead: false },
       data: { isRead: true },
